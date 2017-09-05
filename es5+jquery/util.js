@@ -60,7 +60,6 @@ var Util = (function() {
         output(callstack);
     }
 
-
     var doc = document,
         types = ["Number", "String", "Boolean", "Function", "Object", "Array", "Undefined", "Null"],
         util = {

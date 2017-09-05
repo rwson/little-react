@@ -57,20 +57,27 @@ ReactDOMComponent.prototype = {
             props = element.props,
             type = element.type,
             children = props.children || [],
-            tagOpen, tagClose, propKey, eventType, content, childrenInstances, curRootId, childMarkup;
+            tagOpen, tagClose, propKey, eventType, content, childrenInstances, curRootId, childMarkup, propsArr;
         this._rootNodeID = rootNodeID;
-        tagOpen = "<" + type + "data-reactid=" + this._rootNodeID;
+        tagOpen = "<" + type + " data-reactid=" + this._rootNodeID;
         tagClose = "</" + type + ">";
-        for (propKey in props) {
-            if (/^on[a-z]+i/.test(propKey)) {
-                eventType = propKey.replace("on", "").toLowerCase();
-                $(document).delegate("[data-reactid='" + this._rootNodeID + "']", eventType + "." + this._rootNodeID, props[key]);
-            }
+        propsArr = [];
 
-            if (props[propKey] && propKey !== "children" && /on[a-z]+i/.test(propKey)) {
-                tagOpen += " " + propKey + "=" + props[propKey];
+        for (propKey in props) {
+            if (/^on[a-z]+/i.test(propKey)) {
+                eventType = propKey.replace("on", "").toLowerCase();
+                $(document).delegate("[data-reactid='" + this._rootNodeID + "']", eventType + "." + this._rootNodeID, props[propKey]);
+            } else if (props[propKey] && propKey !== "children") {
+                if (propKey === "className") {
+                    propsArr.push("class=" + props[propKey]);
+                } else {
+                    propsArr.push(propKey + "=" + props[propKey]);
+                }
             }
         }
+
+        tagOpen += " " + propsArr.join(" ");
+        propsArr = [];
 
         content = "";
         childrenInstances = [];
@@ -152,7 +159,7 @@ ReactDOMComponent.prototype = {
 
     //  _diff用来递归找出差别,组装差异对象,添加到更新队列diffQueue
     _diff: function(diffQueue, nextChildrenElements) {
-        var prevChildren, nextChildren, prevChild, nextChild, nextIndex, name;
+        var prevChildren, nextChildren, prevChild, nextChild, lastIndex, nextIndex, name;
 
         //  把_renderedChildren变成一个Map对象
         prevChildren = flattenChildren(this._renderedChildren);
@@ -161,6 +168,8 @@ ReactDOMComponent.prototype = {
         nextChildren = generateComponentChildren(prevChildren, nextChildrenElements);
 
         this._renderedChildren = [];
+
+        lastIndex = 0;
 
         //  重新赋值_renderedChildren,使用最新的
         $.each(nextChildren, function(key, inst) {
@@ -180,19 +189,21 @@ ReactDOMComponent.prototype = {
 
             if (prevChild === nextChild) {
                 //添加差异对象，类型：MOVE_EXISTING
-                diffQueue.push({
+                prevChild._mountIndex < lastIndex && diffQueue.push({
                     parentId: this._rootNodeID,
                     parentNode: $("[data-reactid='" + this._rootNodeID + "']"),
-                    type: UPATE_TYPES.MOVE_EXISTING,
+                    type: UPDATE_TYPES.MOVE_EXISTING,
                     fromIndex: prevChild._mountIndex,
                     toIndex: nextIndex
                 });
+
+                lastIndex = Math.max(prevChild._mountIndex, lastIndex);
             } else {
                 if (prevChild) {
                     diffQueue.push({
                         parentId: this._rootNodeID,
                         parentNode: $("[data-reactid='" + this._rootNodeID + "']"),
-                        type: UPATE_TYPES.REMOVE_NODE,
+                        type: UPDATE_TYPES.REMOVE_NODE,
                         fromIndex: prevChild._mountIndex,
                         toIndex: null
                     });
@@ -201,30 +212,32 @@ ReactDOMComponent.prototype = {
                     if (prevChild._rootNodeID) {
                         $(document).undelegate("." + prevChild._rootNodeID);
                     }
+
+                    lastIndex = Math.max(prevChild._mountIndex, lastIndex);
                 }
             }
 
             //新增加的节点，也组装差异对象放到队列里
             //添加差异对象，类型：INSERT_MARKUP
             diffQueue.push({
-                parentId: self._rootNodeID,
-                parentNode: $('[data-reactid=' + self._rootNodeID + ']'),
-                type: UPATE_TYPES.INSERT_MARKUP,
+                parentId: this._rootNodeID,
+                parentNode: $("[data-reactid='" + this._rootNodeID + "']"),
+                type: UPDATE_TYPES.INSERT_MARKUP,
                 fromIndex: null,
                 toIndex: nextIndex,
                 markup: nextChild.mountComponent() //新增的节点，多一个此属性，表示新节点的dom内容
             });
-        }
 
-        nextChild._mountIndex = nextIndex;
-        nextIndex++;
+            nextChild._mountIndex = nextIndex;
+            nextIndex++;
+        }
 
         for (name in prevChildren) {
             if (prevChildren.hasOwnProperty(name) && !(nextChildren && nextChildren.hasOwnProperty(name))) {
                 diffQueue.push({
                     parentId: this._rootNodeID,
                     parentNode: $("[data-reactid='" + this._rootNodeID + "']"),
-                    type: UPATE_TYPES.REMOVE_NODE,
+                    type: UPDATE_TYPES.REMOVE_NODE,
                     fromIndex: prevChild._mountIndex,
                     toIndex: null
                 });
@@ -238,7 +251,49 @@ ReactDOMComponent.prototype = {
 
 
     _patch: function(updates) {
+        var initialChildren = {},
+            deleteChildren = [],
+            updatedIndex, updatedChild, parentID,
+            update, i, len;
+        for (i = 0, len = updates.length; i < len; i++) {
+            update = updates[i];
 
+            if (update.type === UPDATE_TYPES.MOVE_EXISTING || update.type === UPDATE_TYPES.REMOVE_NODE) {
+                updatedIndex = update.fromIndex;
+                updatedChild = $(update.parentNode.children().get(updatedIndex));
+                parentID = update.parentID;
+
+                initialChildren[parentID] = initialChildren[parentID] || [];
+
+                //使用parentID作为简易命名空间
+                initialChildren[parentID][updatedIndex] = updatedChild;
+
+                //  所有需要修改的节点先删除,对于move的,后面再重新插入到正确的位置即可
+                deleteChildren.push(updatedChild);
+            }
+        }
+
+        //删除所有需要先删除的
+        $.each(deleteChildren, function(index, child) {
+            $(child).remove();
+        });
+
+        for (i = 0, len = updates.length; i < len; i ++) {
+            update = updates[i];
+            switch (update.type) {
+                case UPDATE_TYPES.INSERT_MARKUP:
+                    insertChildAt(update.parentNode, $(update.markup), update.toIndex);
+                break;
+
+                case UPDATE_TYPES.MOVE_EXISTING:
+                    insertChildAt(update.parentNode, initialChildren[update.parentID][update.fromIndex], update.toIndex);
+                break;
+                case UPDATE_TYPES.REMOVE_NODE:
+                break;
+                default:
+                break;
+            }
+        }
     }
 };
 
@@ -306,6 +361,8 @@ ReactCompositeComponent.prototype = {
 
         //  如果nextElement传入了, 就保留最新的
         this._currentElement = nextElement || this._currentElement;
+
+        inst = this._instance;
 
         //  合并state
         nextState = $.extend(inst.state, newState);
@@ -420,6 +477,10 @@ function _shouldUpdateReactComponent(prevElement, nextElement) {
     if (prevType === "string" || prevType === "number") {
         return nextType === "string" || nextType === "number";
     } else {
-        return nextType === "object" && ((prevElement.type === nextElement.type) && (prevElement.key === nextElement.key));
+        try {
+            return nextType === "object" && ((prevElement.type === nextElement.type) && (prevElement.key === nextElement.key));    
+        } catch (e) {
+            console.log(e);
+        }
     }
 }
