@@ -6,13 +6,16 @@ class InputComponnet extends Component {
 	}
 
 	render() {
-		return <input type="text" placeholder={"请输入..."} style={{
-			display: "block",
-			width: "200px",
-			height: "30px",
-			fontSize: "14px",
-			lineHeight: "30px"
-		}} />
+		return <input 
+			type="text" 
+			placeholder={this.props.placeholder} 
+			style={{
+				display: "block",
+				width: "200px",
+				height: "30px",
+				fontSize: "14px",
+				lineHeight: "30px"
+			}} />
 	}
 }
 
@@ -25,9 +28,6 @@ class App extends Component {
 	}
 
 	render() {
-		this.setState({
-			foo: "foo"
-		});
 		return (
 			<div style={"background: red;"}>
 				App Component
