@@ -192,7 +192,7 @@ export class ReactCompositeComponent {
         inst.componentWillMount();
     }
 
-    renderedElement = this._instance.render();
+    renderedElement = this._instance.render.call(this._currentElement);
     renderedComponentInstance = instantiateReactComponent(renderedElement);
     this._renderedComponent = renderedComponentInstance;
     renderedMarkup = renderedComponentInstance.mountComponent(this._rootNodeID);

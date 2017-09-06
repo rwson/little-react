@@ -6,6 +6,7 @@ class InputComponnet extends Component {
 	}
 
 	render() {
+		console.log(this);
 		return <input 
 			type="text" 
 			placeholder={this.props.placeholder} 
