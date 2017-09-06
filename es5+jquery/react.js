@@ -240,13 +240,13 @@ ReactDOMComponent.prototype._diff = function(diffQueue, nextChildrenElements) {
             //添加差异对象，类型：MOVE_EXISTING
             /**注意新增代码**/
             prevChild._mountIndex < lastIndex && diffQueue.push({
-                    parentId: self._rootNodeID,
-                    parentNode: $('[data-reactid=' + self._rootNodeID + ']'),
-                    type: UPATE_TYPES.MOVE_EXISTING,
-                    fromIndex: prevChild._mountIndex,
-                    toIndex: nextIndex
-                })
-                /**注意新增代码**/
+                parentId: self._rootNodeID,
+                parentNode: $('[data-reactid=' + self._rootNodeID + ']'),
+                type: UPATE_TYPES.MOVE_EXISTING,
+                fromIndex: prevChild._mountIndex,
+                toIndex: nextIndex
+            })
+            /**注意新增代码**/
             lastIndex = Math.max(prevChild._mountIndex, lastIndex);
 
         } else { //如果不相同，说明是新增加的节点
@@ -293,13 +293,13 @@ ReactDOMComponent.prototype._diff = function(diffQueue, nextChildrenElements) {
         if (prevChildren.hasOwnProperty(name) && !(nextChildren && nextChildren.hasOwnProperty(name))) {
             //添加差异对象，类型：REMOVE_NODE
             diffQueue.push({
-                    parentId: self._rootNodeID,
-                    parentNode: $('[data-reactid=' + self._rootNodeID + ']'),
-                    type: UPATE_TYPES.REMOVE_NODE,
-                    fromIndex: prevChildren[name]._mountIndex,
-                    toIndex: null
-                })
-                //如果以前已经渲染过了，记得先去掉以前所有的事件监听
+                parentId: self._rootNodeID,
+                parentNode: $('[data-reactid=' + self._rootNodeID + ']'),
+                type: UPATE_TYPES.REMOVE_NODE,
+                fromIndex: prevChildren[name]._mountIndex,
+                toIndex: null
+            })
+            //如果以前已经渲染过了，记得先去掉以前所有的事件监听
             if (prevChildren[name]._rootNodeID) {
                 $(document).undelegate('.' + prevChildren[name]._rootNodeID);
             }
@@ -499,16 +499,16 @@ function instantiateReactComponent(node) {
 //ReactElement就是虚拟dom的概念，具有一个type属性代表当前的节点类型，还有节点的属性props
 //比如对于div这样的节点type就是div，props就是那些propibutes
 //另外这里的key,可以用来标识这个element，用于优化以后的更新，这里可以先不管，知道有这么个东西就好了
-function ReactElement(type,key,props){
-  this.type = type;
-  this.key = key;
-  this.props = props;
+function ReactElement(type, key, props) {
+    this.type = type;
+    this.key = key;
+    this.props = props;
 }
 
 
 //定义ReactClass类,所有自定义的超级父类
 var ReactClass = function() {}
-    //留给子类去继承覆盖
+//留给子类去继承覆盖
 ReactClass.prototype.render = function() {}
 
 //setState
@@ -525,10 +525,10 @@ React = {
     createClass: function(spec) {
         //生成一个子类
         var Constructor = function(props) {
-                this.props = props;
-                this.state = this.getInitialState ? this.getInitialState() : null;
-            }
-            //原型继承，继承超级父类
+            this.props = props;
+            this.state = this.getInitialState ? this.getInitialState() : null;
+        }
+        //原型继承，继承超级父类
         Constructor.prototype = new ReactClass();
         Constructor.prototype.constructor = Constructor;
         //混入spec到原型
@@ -537,7 +537,8 @@ React = {
 
     },
     createElement: function(type, config, children) {
-        var props = {},propName;
+        var props = {},
+            propName;
         config = config || {}
         //看有没有key，用来标识element的类型，方便以后高效的更新，这里可以先不管
         var key = config.key || null;
@@ -552,7 +553,7 @@ React = {
         //支持两种写法，如果只有一个参数，直接赋值给children，否则做合并处理
         var childrenLength = arguments.length - 2;
         if (childrenLength === 1) {
-            props.children = $.isArray(children) ? children : [children] ;
+            props.children = $.isArray(children) ? children : [children];
         } else if (childrenLength > 1) {
             var childArray = Array(childrenLength);
             for (var i = 0; i < childrenLength; i++) {
@@ -560,7 +561,7 @@ React = {
             }
             props.children = childArray;
         }
-        return new ReactElement(type, key,props);
+        return new ReactElement(type, key, props);
     },
     render: function(element, container) {
         var componentInstance = instantiateReactComponent(element);
