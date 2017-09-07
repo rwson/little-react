@@ -3,28 +3,34 @@ import * as toStyle from "to-style";
 
 import { hasOwnProperty, noop } from "./helper/util";
 import { $, $$ } from "./helper/dom";
-import EVENT from "./helper/event";
+import Event from "./helper/event";
 
-//  事件名正则
+    //  事件名正则
 const EVENT_REG = /^on[a-z]+/i,
-    SINGLE_TAG_REG = /br|hr|img|input|param/;
+
+    //  单标签正则
+    SINGLE_TAG_REG = /br|hr|img|input|param/,
+
+    //  缓存document
+    doc = document;
 
 export function instantiateReactComponent(node) {
-    //文本节点的情况
+    //  文本节点的情况
     if (typeof node === "string" || typeof node === "number") {
         return new ReactDOMTextComponent(node);
     }
 
-    //浏览器默认节点的情况
+    //  浏览器默认节点的情况
     if (typeof node === "object" && typeof node.type === "string") {
-        //注意这里，使用了一种新的component
+        console.log("浏览器默认节点的情况");
+        console.log(new ReactDOMComponent(node));
         return new ReactDOMComponent(node);
-
     }
 
-    //自定义的元素节点
+    //  自定义的元素节点
     if (typeof node === "object" && typeof node.type === "function") {
-        //注意这里，使用新的component,专门针对自定义元素
+        // console.log("自定义的元素节点");
+        // console.log(node);
         return new ReactCompositeComponent(node);
     }
 }
@@ -54,7 +60,7 @@ export class ReactDOMTextComponent {
      */
     receiveComponent(text) {
         const nextStringText = ("" + text);
-        if (nextStringText !== this._currentelement) {
+        if (nextStringText !== this._currentElement) {
             this._currentElement = nextStringText;
             $(`[data-reactid='${this._rootNodeID}']`).textContent = nextStringText;
         }
@@ -103,9 +109,16 @@ export class ReactDOMComponent {
                      *      );
                      *  }
                      */
-                    eventType = propKey.replace("on", "");
+                    eventType = propKey.replace("on", "").toLowerCase();
+                    Event.delegate({
+                        element: doc,
+                        type: eventType,
+                        selector: `[data-reactid="${this._rootNodeID}"]`,
+                        handler: propValue,
+                        context: null
+                    });
 
-                    //  TODO: 对当前元素进行事件代理
+                    //  TODO: 实现对当前元素进行事件代理
                 } else if (propKey === "style") {
 
                     /**
@@ -150,10 +163,10 @@ export class ReactDOMComponent {
         if (children && children.length) {
             children.forEach((child, key) => {
                 childComponentInstance = instantiateReactComponent(child);
-                childComponentInstance._mountIndex = key;
                 childrenInstances.push(childComponentInstance);
+                childComponentInstance._mountIndex = key;
                 curRootId = `${this._rootNodeID}.${key}`;
-                childrenMarkups.push(childComponentInstance.mountComponent(curRootId));
+                childrenMarkups.push(childComponentInstance.mountComponent.call(childComponentInstance, curRootId));
             });
         }
 
@@ -178,7 +191,7 @@ export class ReactCompositeComponent {
         this._instance = null;
     }
 
-    mountComponent(rootID) {
+    mountComponent(rootID, hostContainerInfo, context) {
         this._rootNodeID = rootID;
         const { props, type} = this._currentElement,
             ReactClass = type,
@@ -192,7 +205,7 @@ export class ReactCompositeComponent {
         inst.componentWillMount();
     }
 
-    renderedElement = this._instance.render.call(this._currentElement);
+    renderedElement = this._instance.render();
     renderedComponentInstance = instantiateReactComponent(renderedElement);
     this._renderedComponent = renderedComponentInstance;
     renderedMarkup = renderedComponentInstance.mountComponent(this._rootNodeID);

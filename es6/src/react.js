@@ -4,6 +4,9 @@ import StackTrace from "stacktrace-js";
 import { instantiateReactComponent } from "./react.componet";
 import { hasOwnProperty, noop } from "./helper/util";
 
+//  Element.prototype.matches兼容, 事件代理
+import "./helper/polyfill";
+
     //  无用的一些属性
 const uselessProp = ["key", "ref", "__self", "__source"],
 
@@ -88,11 +91,13 @@ export class Component {
     render() {}
 }
 
+/**
+ *  解析JSX
+ */
 function createElement(type, config, ...children) {
     let props = {},
         key = null,
         ref = null;
-
     if (config != null) {
         ref = lodash.isUndefined(config.ref) ? null : config.ref;
         key = lodash.isUndefined(config.key) ? null : "" + config.key;
@@ -101,17 +106,21 @@ function createElement(type, config, ...children) {
                 props[propsName] = config[propsName];
             }
         }
-
         //  子组件
         props.children = children;
     }
     return new ReactElement(type, key, props, ref);
 }
 
+//  渲染函数
 function render(componnet, container, callback = noop) {
     const componentInstance = instantiateReactComponent(componnet),
         markup = componentInstance.mountComponent(React.nextReactRootIndex ++);
     container.innerHTML = markup;
+
+    if (lodash.isFunction(callback)) {
+        callback.call(componentInstance);
+    }
 }
 
 const React = {
