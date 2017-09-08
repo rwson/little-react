@@ -32,10 +32,6 @@ function mapToInstance(obj, inst, keys = []) {
 }
 
 export function instantiateReactComponent(node) {
-
-    logLine();
-    log(node);
-
     //  文本节点的情况
     if (typeof node === "string" || typeof node === "number") {
         return new ReactDOMTextComponent(node);
@@ -86,6 +82,7 @@ export class ReactDOMTextComponent {
     }
 }
 
+//  DOM标签组件
 export class ReactDOMComponent {
     constructor(element) {
         this.type = "ReactDOMComponent";
@@ -160,7 +157,7 @@ export class ReactDOMComponent {
                     }
 
                     tagOpen.push(`style='${propValue}'`);
-                } else if (propValue === "className") {
+                } else if (propKey === "className") {
                     tagOpen.push(`class='${propValue}'`);
                 } else {
                     tagOpen.push(`${propKey}='${propValue}'`);
@@ -188,8 +185,6 @@ export class ReactDOMComponent {
                 childrenMarkups.push(childComponentInstance.mountComponent(curRootId));
             });
         }
-
-        console.log(childrenMarkups.join(""));
 
         this._renderedChildren = childrenInstances;
         return `${tagOpen.join(" ")} ${childrenMarkups.join("")} ${tagClose}`;
@@ -263,14 +258,16 @@ export class ReactDOMComponent {
         }
     }
 
+    /**
+     *  更新子元素
+     *  @param    {Array}  nextChildrenElements  [被更新的组件队列]
+     */
     _updateDOMChildren(nextChildrenElements) {
         update.updateDepth ++;
 
         //  递归找出差别, 组装差异对象
         update.diff(update.diffQueue, nextChildrenElements, this);
-
         update.updateDepth --;
-
         //  应用更新
         if (update.updateDepth === 0) {
             update.patch(update.diffQueue);
@@ -278,6 +275,7 @@ export class ReactDOMComponent {
     }
 }
 
+//  自定义标签组件
 export class ReactCompositeComponent {
     constructor(element) {
         this.type = "ReactCompositeComponent";
@@ -290,6 +288,7 @@ export class ReactCompositeComponent {
         this._instance = null;
     }
 
+    //  启动组件
     mountComponent(rootID) {
         this._rootNodeID = rootID;
         const { props, type } = this._currentElement,

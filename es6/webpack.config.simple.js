@@ -4,7 +4,7 @@ var webpack = require("webpack")
 module.exports = {
     devtool: "cheap-module-eval-source-map",
     entry: [
-        "./index.js"
+        "./simple.js"
     ],
     output: {
         path: path.join(__dirname, "build"),
@@ -22,6 +22,6 @@ module.exports = {
     devServer: {
         contentBase: "./",
         hot: true,
-        port: 9000
+        port: 9002
     }
 }

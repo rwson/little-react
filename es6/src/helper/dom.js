@@ -30,12 +30,27 @@ export function $$(selector) {
  *  @return  {ELement}              [被插入的元素]
  */
 export function insertChildAt(parentNode, childNode, index) {
+	if (!childNode) {
+		return;
+	}
 	let fragement = childNode;
 	if (lodash.isString(childNode)) {
-		fragement = doc.createDocumentFragment();
+		fragement = doc.createElement("div");
 		fragement.innerHTML = childNode;
 	}
-    const beforeChild = parentNode.children[index];
-    beforeChild ? parentNode.insertBefore(fragement, beforeChild) : parentNode.appendChild(fragement);
-    return childNode;
+
+    const beforeChild = parentNode.children[index],
+    	children = makeArray(fragement.children),
+    	isBeforeNull = (beforeChild && beforeChild.nodeType === 1) ? true : false;
+
+    for (let child of children) {
+    	if (!isBeforeNull) {
+    		parentNode.appendChild(child);
+    	} else {
+    		parentNode.insertBefore(child, beforeChild);
+    	}
+    }
+
+    fragement = null;
+    return children;
 }

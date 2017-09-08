@@ -3,19 +3,22 @@ import React, { Component } from "./src/react";
 class InputComponnet extends Component {
     constructor() {
         super();
-        this.state = {
-            foo: "bar"
-        };
+    }
+
+    keyUpHandler(ev) {
+        const { handler } = this.props,
+            evt = ev || window.event;
+        this.props.handler();
     }
 
     render() {
-        const { placeholder, handler } = this.props;
+        const { placeholder } = this.props;
         return (
 			<input
 		        type = "text"
                 ref="textInput"
 		        placeholder = { placeholder }
-		        onKeyUp = { handler }
+		        onKeyUp = { this.keyUpHandler.bind(this) }
 		        style = {{
 	                display: "block",
 	                width: "200px",

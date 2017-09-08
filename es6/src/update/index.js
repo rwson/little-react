@@ -1,5 +1,5 @@
 import * as lodash from "lodash";
-import { hasOwnProperty } from "../helper/util";
+import { hasOwnProperty, makeArray } from "../helper/util";
 import { $, $$, insertChildAt } from "../helper/dom";
 import { instantiateReactComponent } from "../react.componet";
 
@@ -37,23 +37,25 @@ function generateComponentChildren(prevChildren, nextChildrenElements) {
         index, len, name, prevChild, prevElement, nextElement, nextChildInstance, element;
     nextChildrenElements = nextChildrenElements || [];
 
-    for (index = 0, len = nextChildrenElements.length; index < len; index ++) {
-        element = nextChildrenElements[index];
-        name = element.key || ("" + index).toString(36);
-        prevChild = prevChildren && prevChildren[name];
-        prevElement = prevChild && prevChild._currentElement;
-        nextElement = element;
+    try {
+	    for (index = 0, len = nextChildrenElements.length; index < len; index ++) {
+	        element = nextChildrenElements[index];
+	        name = element.key || index;
+	        prevChild = prevChildren && prevChildren[name];
+	        prevElement = prevChild && prevChild._currentElement;
+	        nextElement = element;
 
-        //	组件有更新, 调用当前组件下的reciveComponent去更新组件
-        if (shouldUpdateReactComponent(prevElement, nextElement)) {
-            prevChild.receiveComponent(nextElement);
-            nextChildren[name] = prevChild;
-        } else {
-            //	新节点, 实例化新组件
-            nextChildInstance = instantiateReactComponent(nextElement, null);
-            nextChildren[name] = nextChildInstance;
-        }
-    }
+	        //	组件有更新, 调用当前组件下的reciveComponent去更新组件
+	        if (shouldUpdateReactComponent(prevElement, nextElement)) {
+	            prevChild.receiveComponent(nextElement);
+	            nextChildren[name] = prevChild;
+	        } else {
+	            //	新节点, 实例化新组件
+	            nextChildInstance = instantiateReactComponent(nextElement, null);
+	            nextChildren[name] = nextChildInstance;
+	        }
+	    }
+    } catch (e) {}
 
     return nextChildren;
 }
@@ -102,7 +104,7 @@ export const update = {
             nextChildren = generateComponentChildren(prevChildren, nextChildrenElements);
 
         //	把nextChildren克隆一份给_renderedChildren
-        component._renderedChildren = lodash.clone(nextChildren);
+        component._renderedChildren = makeArray(nextChildren);
 
         let lastIndex = 0,
             nextIndex = 0,
@@ -183,33 +185,35 @@ export const update = {
             initialChildren[parentID][updatedIndex] = updatedChild;
 
             //	所有需要修改的节点先删除,对于move的,后面再重新插入到正确的位置即可
-            deleteChildren.push(updatedChild);
+            if (!lodash.isNull(updatedChild) && !lodash.isUndefined(updatedChild)) {
+            	deleteChildren.push(updatedChild);
+            }
         }
 
         //	删除需要删除的节点
         for (let child of deleteChildren) {
-            // child.parentNode.removeChild(child);
+            child.parentNode.removeChild(child);
         }
 
         for (let updateItem of updates) {
+            switch (updateItem.type) {
+                //	插入新元素
+                case UPDATE_TYPES.INSERT_MARKUP:
+                    insertChildAt(updateItem.parentNode, updateItem.markup, updateItem.toIndex);
+                    break;
 
-        	console.log(updateItem);
+                    //	元素位置发生改变    
+                case UPDATE_TYPES.MOVE_EXISTING:
+                    insertChildAt(updateItem.parentNode, initialChildren[updateItem.parentID][updateItem.fromIndex], updateItem.toIndex);
+                    break;
 
-            // switch (updateItem.type) {
-            //     //	插入新元素
-            //     case UPDATE_TYPES.INSERT_MARKUP:
-            //         insertChildAt(updateItem.parentNode, updateItem.markup, updateItem.toIndex);
-            //         break;
+                    // 	上面已经删除, 所以不需要处理
+                case UPDATE_TYPES.REMOVE_NODE:
+                    break;
 
-            //         //	元素位置发生改变    
-            //     case UPDATE_TYPES.MOVE_EXISTING:
-            //         insertChildAt(updateItem.parentNode, initialChildren[updateItem.parentID][updateItem.fromIndex], updateItem.toIndex);
-            //         break;
-
-            //         // 	上面已经删除, 所以不需要处理
-            //     case UPDATE_TYPES.REMOVE_NODE:
-            //         break;
-            // }
+                default:
+                	break;
+            }
         }
 
         //	重置相关变量

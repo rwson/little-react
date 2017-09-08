@@ -96,10 +96,14 @@ export class Component {
  *  解析JSX
  */
 function createElement(type, config, ...children) {
+
+    // console.log([].slice.call(arguments));
+    // console.log(children);
+
     let props = {},
         key = null,
         ref = null;
-    if (config != null) {
+    if (config !== null) {
         ref = lodash.isUndefined(config.ref) ? null : config.ref;
         key = lodash.isUndefined(config.key) ? null : "" + config.key;
         for (let propsName in config) {
@@ -107,9 +111,11 @@ function createElement(type, config, ...children) {
                 props[propsName] = config[propsName];
             }
         }
-        //  子组件
-        props.children = children;
     }
+
+    //  子组件
+    props.children = children;
+
     return new ReactElement(type, key, props, ref);
 }
 

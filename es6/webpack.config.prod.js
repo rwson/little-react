@@ -3,7 +3,7 @@ var webpack = require("webpack")
 
 module.exports = {
     devtool: "source-map",
-    entry: "./src/index.js",
+    entry: "./src/react.js",
     output: {
         path: path.join(__dirname, "dist"),
         filename: "tiny-react.js"
