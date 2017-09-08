@@ -1,11 +1,14 @@
 import * as lodash from "lodash";
 import * as toStyle from "to-style";
+import mixin from "mixin-decorator";
+import StackTrace from "stacktrace-js";
 
 import { hasOwnProperty, noop } from "./helper/util";
 import { $, $$ } from "./helper/dom";
+import { shouldUpdateReactComponent, update } from "./update";
 import Event from "./helper/event";
 
-    //  事件名正则
+//  事件名正则
 const EVENT_REG = /^on[a-z]+/i,
 
     //  单标签正则
@@ -14,7 +17,25 @@ const EVENT_REG = /^on[a-z]+/i,
     //  缓存document
     doc = document;
 
+function mapToInstance(obj, inst, keys = []) {
+    const { length } = keys;
+    Object.keys(obj).forEach((key) => {
+        if (hasOwnProperty(obj, key)) {
+            if (length === 0) {
+                inst[key] = obj[key];
+            } else if (keys.indexOf(key) > -1) {
+                inst[key] = obj[key];
+            }
+        }
+    });
+    return inst;
+}
+
 export function instantiateReactComponent(node) {
+
+    logLine();
+    log(node);
+
     //  文本节点的情况
     if (typeof node === "string" || typeof node === "number") {
         return new ReactDOMTextComponent(node);
@@ -22,15 +43,11 @@ export function instantiateReactComponent(node) {
 
     //  浏览器默认节点的情况
     if (typeof node === "object" && typeof node.type === "string") {
-        console.log("浏览器默认节点的情况");
-        console.log(new ReactDOMComponent(node));
         return new ReactDOMComponent(node);
     }
 
     //  自定义的元素节点
     if (typeof node === "object" && typeof node.type === "function") {
-        // console.log("自定义的元素节点");
-        // console.log(node);
         return new ReactCompositeComponent(node);
     }
 }
@@ -38,8 +55,10 @@ export function instantiateReactComponent(node) {
 //  文本组件
 export class ReactDOMTextComponent {
     constructor(text) {
+        this.type = "ReactDOMTextComponent";
+
         //  存下当前的字符串
-        this._currentElement =  ("" + text);
+        this._currentElement = ("" + text);
         //  组件唯一id
         this._rootNodeID = null;
     }
@@ -51,7 +70,7 @@ export class ReactDOMTextComponent {
      */
     mountComponent(rootID) {
         this._rootNodeID = rootID;
-        return `<!-- react-text: ${this._rootNodeID} -->${this._currentElement}<!-- /react-text -->`;
+        return `<span data-reactid="${this._rootNodeID}">${this._currentElement}</span>`;
     }
 
     /**
@@ -69,6 +88,8 @@ export class ReactDOMTextComponent {
 
 export class ReactDOMComponent {
     constructor(element) {
+        this.type = "ReactDOMComponent";
+
         //  存下当前元素引用
         this._currentElement = element;
         //  组件唯一id
@@ -84,14 +105,11 @@ export class ReactDOMComponent {
      */
     mountComponent(rootID) {
         this._rootNodeID = rootID;
-
-        const { props, type } = this._currentElement,
-            { children } = props,
+        const { props, type } = this._currentElement, { children } = props,
             isSingleTag = SINGLE_TAG_REG.test(type);
         let tagOpen, tagClose, propKey, propValue, eventType, childrenInstances, childComponentInstance, childrenMarkups, curRootId;
-
         tagOpen = [];
-        tagOpen.push(`<${type}`, `data-reactid="${this._rootNodeID}"`);
+        tagOpen.push(`<${type}`, `data-reactid='${this._rootNodeID}'`);
 
         for (propKey in props) {
             if (hasOwnProperty(props, propKey) && propKey !== "children") {
@@ -141,11 +159,11 @@ export class ReactDOMComponent {
                         propValue = toStyle.string(propValue);
                     }
 
-                    tagOpen.push(`style="${propValue}"`);
+                    tagOpen.push(`style='${propValue}'`);
                 } else if (propValue === "className") {
-                    tagOpen.push(`class="${propValue}"`);
+                    tagOpen.push(`class='${propValue}'`);
                 } else {
-                    tagOpen.push(`${propKey}="${propValue}"`);
+                    tagOpen.push(`${propKey}='${propValue}'`);
                 }
             }
         }
@@ -160,29 +178,110 @@ export class ReactDOMComponent {
 
         childrenMarkups = [];
         childrenInstances = [];
+
         if (children && children.length) {
             children.forEach((child, key) => {
                 childComponentInstance = instantiateReactComponent(child);
                 childrenInstances.push(childComponentInstance);
                 childComponentInstance._mountIndex = key;
                 curRootId = `${this._rootNodeID}.${key}`;
-                childrenMarkups.push(childComponentInstance.mountComponent.call(childComponentInstance, curRootId));
+                childrenMarkups.push(childComponentInstance.mountComponent(curRootId));
             });
         }
 
+        console.log(childrenMarkups.join(""));
+
         this._renderedChildren = childrenInstances;
-        return `${tagOpen.join(" ")} ${childrenMarkups.join(" ")} ${tagClose}`;
+        return `${tagOpen.join(" ")} ${childrenMarkups.join("")} ${tagClose}`;
     }
 
-    receiveComponent(nextElement) {}
+    receiveComponent(nextElement) {
+        const lastProps = this._currentElement.props,
+            nextProps = nextElement.props;
 
-    _updateDOMProperties(lastProps, nextProps) {}
+        this._currentElement = nextElement;
 
-    _updateDOMChildren(nextChildrenElements) {}
+        //  需要单独的更新属性
+        this._updateDOMProperties(lastProps, nextProps);
+
+        //  再更新子节点
+        this._updateDOMChildren(nextElement.props.children);
+    }
+
+    /**
+     *  更新组件中相关DOM的属性
+     *  @param    {Object}  lastProps  [旧属性]
+     *  @param    {Object}  nextProps  [新属性]
+     *  @private
+     */
+    _updateDOMProperties(lastProps, nextProps) {
+        const { _rootNodeID } = this,
+        element = $(`[data-reactid="${_rootNodeID}"]`);
+        let propKey, propValue, eventType, removed;
+
+        for (propKey in lastProps) {
+            //  只删除老属性中有但是新属性中没有的
+            if (hasOwnProperty(lastProps, propKey) && !hasOwnProperty(nextProps, propKey)) {
+                propValue = lastProps[propKey];
+
+                //  之前的事件代理需要解除
+                if (EVENT_REG.test(propKey)) {
+
+                    //  TODO: 解除事件代理
+                    continue;
+                } else if (propKey === "className") {
+                    removed = "class";
+                } else {
+                    removed = propKey;
+                }
+
+                //  删除相关属性
+                element.removeAttribute(removed);
+            }
+        }
+
+        //  开始遍历新属性集合
+        for (propKey in nextProps) {
+            if (hasOwnProperty(nextProps, propKey) && propKey !== "children") {
+                propValue = lastProps[propKey];
+
+                if (EVENT_REG.test(propKey)) {
+
+                    //  TODO: 重新事件代理
+                    continue;
+                } else if (propKey === "className") {
+                    element.setAttribute("class", propValue);
+                } else if(propKey === "style") {
+                    if (lodash.isObject(propValue)) {
+                        propValue = toStyle.string(propValue);
+                    }
+                    element.setAttribute(propKey, propValue);
+                } else {
+                    element.setAttribute(propKey, propValue);
+                }
+            }
+        }
+    }
+
+    _updateDOMChildren(nextChildrenElements) {
+        update.updateDepth ++;
+
+        //  递归找出差别, 组装差异对象
+        update.diff(update.diffQueue, nextChildrenElements, this);
+
+        update.updateDepth --;
+
+        //  应用更新
+        if (update.updateDepth === 0) {
+            update.patch(update.diffQueue);
+        }
+    }
 }
 
 export class ReactCompositeComponent {
     constructor(element) {
+        this.type = "ReactCompositeComponent";
+
         //  存放元素element对象
         this._currentElement = element;
         //  存放唯一标识
@@ -191,57 +290,90 @@ export class ReactCompositeComponent {
         this._instance = null;
     }
 
-    mountComponent(rootID, hostContainerInfo, context) {
+    mountComponent(rootID) {
         this._rootNodeID = rootID;
-        const { props, type} = this._currentElement,
+        const { props, type } = this._currentElement,
             ReactClass = type,
             inst = new ReactClass(props);
-        let renderedElement, renderedComponentInstance, renderedMarkup;
+        let props2 = lodash.clone(props),
+            element2 = lodash.clone(this._currentElement),
+            renderedElement, renderedComponentInstance, renderedMarkup;
 
-        this._instance = inst;
+        //  把相关属性拷贝到实例上
+        this._instance = mapToInstance(Object.assign(element2, {
+            props: props2
+        }, {
+            state: inst.state || null
+        }), inst);
+
         inst._reactInternalInstance = this;
 
-    if (lodash.isFunction(inst.componentWillMount)) {
+        delete props2.children;
+        delete element2.key;
+
+        //  生命周期componentWillMount
         inst.componentWillMount();
+
+        renderedElement = this._instance.render();
+        renderedComponentInstance = instantiateReactComponent(renderedElement);
+        this._renderedComponent = renderedComponentInstance;
+        renderedMarkup = renderedComponentInstance.mountComponent(this._rootNodeID);
+
+        //  生命周期componentDidMount
+        inst.componentDidMount();
+        return renderedMarkup;
     }
 
-    renderedElement = this._instance.render();
-    renderedComponentInstance = instantiateReactComponent(renderedElement);
-    this._renderedComponent = renderedComponentInstance;
-    renderedMarkup = renderedComponentInstance.mountComponent(this._rootNodeID);
 
-    return renderedMarkup;
+    receiveComponent(nextElement, newState) {
+        //  如果接受了新的, 就使用最新的element
+        this._currentElement = nextElement || this._currentElement;
 
-    // var publicProps = this._currentElement.props;
-    // //拿到对应的ReactClass
-    // var ReactClass = this._currentElement.type;
-    // // Initialize the public class
-    // var inst = new ReactClass(publicProps);
-    // this._instance = inst;
-    // //保留对当前comonent的引用，下面更新会用到
-    // inst._reactInternalInstance = this;
+        const { _rootNodeID } = this;
 
-    // if (inst.componentWillMount) {
-    //     inst.componentWillMount();
-    //     //这里在原始的reactjs其实还有一层处理，就是  componentWillMount调用setstate，不会触发rerender而是自动提前合并，这里为了保持简单，就略去了
-    // }
-    // //调用ReactClass的实例的render方法,返回一个element或者一个文本节点
-    // var renderedElement = this._instance.render();
-    // //得到renderedElement对应的component类实例
-    // var renderedComponentInstance = instantiateReactComponent(renderedElement);
-    // this._renderedComponent = renderedComponentInstance; //存起来留作后用
+        let inst = this._instance,
 
-    // //拿到渲染之后的字符串内容，将当前的_rootNodeID传给render出的节点
-    // var renderedMarkup = renderedComponentInstance.mountComponent(this._rootNodeID);
+            //  nextState和nextProps的处理
+            nextState = Object.assign(inst.state, newState),
+            nextProps = lodash.clone(this._currentElement.props),
+            prevComponentInstance,
+            prevRenderedElement,
+            nextRenderedElement,
+            nextMarkup;
 
-    // //之前我们在React.render方法最后触发了mountReady事件，所以这里可以监听，在渲染完成后会触发。
-    // $(document).on('mountReady', function() {
-    //     //调用inst.componentDidMount
-    //     inst.componentDidMount && inst.componentDidMount();
-    // });
+        //  修改组件的state
+        inst.state = nextState;
 
-    // return renderedMarkup;
+        //  声明周期shouldComponentUpdate
+        if (!inst.shouldComponentUpdate(nextProps, nextState)) {
+            return;
+        }
+
+        //  声明周期componentWillUpdate
+        inst.componentWillUpdate(nextProps, nextState);
+
+        //  之前的组件组件实例
+        prevComponentInstance = this._renderedComponent;
+
+        //  之前的组件元素
+        prevRenderedElement = prevComponentInstance._currentElement;
+
+        //  即将被渲染的新组件元素
+        nextRenderedElement = this._instance.render();
+
+        //  判断是需要更新还是直接就重新渲染
+        if ((!lodash.isNull(prevRenderedElement) && !lodash.isNull(nextRenderedElement)) && shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
+            prevComponentInstance.receiveComponent(nextRenderedElement);
+            inst.componentDidUpdate();
+        } else {
+            //  重新new一个对应的component
+            this._renderedComponent = this.instantiateReactComponent(nextRenderedElement);
+
+            //  重新生成对应的元素内容
+            nextMarkup = this._renderedComponent.mountComponent(_rootNodeID);
+
+            //  替换整个节点
+            $(`[data-reactid="${_rootNodeID}"]`).innerHTML = nextMarkup;
+        }
     }
-
-    receiveComponent(nextElement, newState) {}
 }

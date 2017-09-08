@@ -21,7 +21,8 @@ class ReactElement {
         this.type = type;
         this.key = key;
         this.props = props || {};
-        this.ref = ref || {};
+        this.refs = ref || {};
+        this.context = {};
     }
 }
 
@@ -36,7 +37,7 @@ export class Component {
         const stacks = StackTrace.getSync();
         for(let {functionName, source} of stacks) {
             if(RENDER_REG.test(functionName) && RENDER_REG.test(source)) {
-                throw new Error(`callStack Error: you can't call setState in render method!`);
+                throw new Error("callStack Error: you can't call setState in render method!");
             }
         }
         this._reactInternalInstance.receiveComponent(null, newState);
@@ -130,5 +131,14 @@ const React = {
 };
 
 window["React"] = React;
+
+window.logLine = function() {
+    console.log(`------------------------------------`);
+};
+
+window.log = function() {
+    console.log.apply(console, [].slice.call(arguments));
+    console.log("\n");
+};
 
 export default React;

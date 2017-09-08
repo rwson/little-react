@@ -3,19 +3,19 @@ import React, { Component } from "./src/react";
 class InputComponnet extends Component {
     constructor() {
         super();
-    }
-
-    keyUpHandler(ev) {
-        console.log(this);
+        this.state = {
+            foo: "bar"
+        };
     }
 
     render() {
+        const { placeholder, handler } = this.props;
         return (
 			<input
 		        type = "text"
                 ref="textInput"
-		        placeholder = { "请输入..." }
-		        onKeyUp = { this.keyUpHandler }
+		        placeholder = { placeholder }
+		        onKeyUp = { handler }
 		        style = {{
 	                display: "block",
 	                width: "200px",
@@ -31,22 +31,29 @@ class App extends Component {
     constructor() {
         super();
         this.state = {
-            foo: "bar"
+            foo: "App Component",
+            placeholder: "请输入..."
         };
+    }
+
+    keyUpHandler() {
+        this.setState({
+            foo: "fuck" + Math.random().toString(16),
+            placeholder: Math.random().toString(16)
+        });
     }
 
     render() {
         return ( 
             <div style = { "background: red;" } >
-        		App Component <InputComponnet placeholder = { "请输入..." }/> 
+        		 {this.state.foo}
+                <InputComponnet
+                    placeholder = { this.state.placeholder }
+                    handler = { this.keyUpHandler.bind(this) }
+                    /> 
         	 </div>
         );
     }
 }
 
-React.render( < App / > , document.querySelector("#root"));
-
-
-// l.default.createElement("div", { className: (0, m.default)
-// 	("relative left text-center inline-block tab-item", { on: "decenter" === r }), 
-// 	onClick: function() { t.setState({ current: "decenter" }) } }
+React.render( <App / > , document.querySelector("#root"));
