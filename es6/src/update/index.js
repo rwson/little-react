@@ -1,13 +1,21 @@
 import * as lodash from "lodash";
 import { hasOwnProperty, makeArray } from "../helper/util";
 import { $, $$, insertChildAt } from "../helper/dom";
+import Event from "../helper/event";
 import { instantiateReactComponent } from "../react.componet";
 
+//  更新类型
 const UPDATE_TYPES = {
     MOVE_EXISTING: 1,
     REMOVE_NODE: 2,
     INSERT_MARKUP: 3
 };
+
+//  事件名称正则
+const EVENT_REG = /^on[a-z]+/i;
+
+//  缓存document对象
+const doc = document;
 
 /**
  *  把原来是数组的子组件集合转换成Map返回
@@ -37,25 +45,23 @@ function generateComponentChildren(prevChildren, nextChildrenElements) {
         index, len, name, prevChild, prevElement, nextElement, nextChildInstance, element;
     nextChildrenElements = nextChildrenElements || [];
 
-    try {
-	    for (index = 0, len = nextChildrenElements.length; index < len; index ++) {
-	        element = nextChildrenElements[index];
-	        name = element.key || index;
-	        prevChild = prevChildren && prevChildren[name];
-	        prevElement = prevChild && prevChild._currentElement;
-	        nextElement = element;
+    for (index = 0, len = nextChildrenElements.length; index < len; index ++) {
+        element = nextChildrenElements[index];
+        name = (element && element.key) ? element.key : index;
+        prevChild = prevChildren && prevChildren[name];
+        prevElement = prevChild && prevChild._currentElement;
+        nextElement = element;
 
-	        //	组件有更新, 调用当前组件下的reciveComponent去更新组件
-	        if (shouldUpdateReactComponent(prevElement, nextElement)) {
-	            prevChild.receiveComponent(nextElement);
-	            nextChildren[name] = prevChild;
-	        } else {
-	            //	新节点, 实例化新组件
-	            nextChildInstance = instantiateReactComponent(nextElement, null);
-	            nextChildren[name] = nextChildInstance;
-	        }
-	    }
-    } catch (e) {}
+        //  组件有更新, 调用当前组件下的reciveComponent去更新组件
+        if (shouldUpdateReactComponent(prevElement, nextElement)) {
+            prevChild.receiveComponent(nextElement);
+            nextChildren[name] = prevChild;
+        } else {
+            //  新节点, 实例化新组件
+            nextChildInstance = instantiateReactComponent(nextElement);
+            nextChildren[name] = nextChildInstance;
+        }
+    }
 
     return nextChildren;
 }
@@ -68,7 +74,7 @@ function generateComponentChildren(prevChildren, nextChildrenElements) {
  */
 export function shouldUpdateReactComponent(prevElement, nextElement) {
     //	排除两者都为空的情况
-    if (!lodash.isNull(prevElement) && !lodash.isNull(nextElement)) {
+    if (!lodash.isNull(prevElement) && !lodash.isNull(nextElement) && !lodash.isUndefined(prevElement) && !lodash.isUndefined(nextElement)) {
         const prevType = typeof prevElement,
             nextType = typeof nextElement;
 
@@ -110,7 +116,7 @@ export const update = {
             nextIndex = 0,
             prevChild = null,
             nextChild = null,
-            name;
+            name, props, propKey, eventType;
 
         //	枚举nextChildren
         for (name in nextChildren) {
@@ -145,6 +151,18 @@ export const update = {
                     });
                     lastIndex = Math.max(prevChild._mountIndex, lastIndex);
 
+                    props = prevChild._currentElement.props;
+
+                    for (propKey in props) {
+                        if (hasOwnProperty(props, propKey) && EVENT_REG.test(propKey)) {
+                            eventType = propKey.replace("on", "");
+                            Event.undelegate({
+                                element: doc,
+                                type: eventType,
+                                selector: `[data-reactid="${prevChild._rootNodeID}"]`
+                            });
+                        }
+                    }
                     //	TODO: 如果有事件代理要移除相应事件代理
                 }
 

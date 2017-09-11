@@ -2,7 +2,6 @@ import * as lodash from "lodash";
 import * as toStyle from "to-style";
 import mixin from "mixin-decorator";
 import StackTrace from "stacktrace-js";
-
 import { hasOwnProperty, noop } from "./helper/util";
 import { $, $$ } from "./helper/dom";
 import { shouldUpdateReactComponent, update } from "./update";
@@ -32,6 +31,10 @@ function mapToInstance(obj, inst, keys = []) {
 }
 
 export function instantiateReactComponent(node) {
+    if (lodash.isNull(node) || lodash.isUndefined(node)) {
+        return new ReactEmptyComponent(null);
+    }
+
     //  文本节点的情况
     if (typeof node === "string" || typeof node === "number") {
         return new ReactDOMTextComponent(node);
@@ -45,6 +48,30 @@ export function instantiateReactComponent(node) {
     //  自定义的元素节点
     if (typeof node === "object" && typeof node.type === "function") {
         return new ReactCompositeComponent(node);
+    }
+}
+
+//  空组件
+export class ReactEmptyComponent {
+    constructor(node) {
+        this.type = "ReactEmptyComponent";
+        this._currentElement = null;
+        this._rootNodeID = null;
+    }
+
+    /**
+     *  空组件挂载直接返回一段空注释回去
+     */
+    mountComponent(rootID) {
+        this._rootNodeID = rootID;
+        return `<!-- empty component data-reactid="${this._rootNodeID}" -->`;
+    }
+
+    /**
+     *  空组件更新直接返回一段空注释回去
+     */
+    receiveComponent() {
+        return `<!-- empty component data-reactid="${this._rootNodeID}" -->`;
     }
 }
 
@@ -125,6 +152,12 @@ export class ReactDOMComponent {
                      *  }
                      */
                     eventType = propKey.replace("on", "").toLowerCase();
+
+                    Event.undelegate({
+                        element: doc,
+                        type: eventType,
+                        selector: `[data-reactid="${this._rootNodeID}"]`
+                    });
                     Event.delegate({
                         element: doc,
                         type: eventType,
@@ -178,11 +211,13 @@ export class ReactDOMComponent {
 
         if (children && children.length) {
             children.forEach((child, key) => {
-                childComponentInstance = instantiateReactComponent(child);
-                childrenInstances.push(childComponentInstance);
-                childComponentInstance._mountIndex = key;
-                curRootId = `${this._rootNodeID}.${key}`;
-                childrenMarkups.push(childComponentInstance.mountComponent(curRootId));
+                if (child) {
+                    childComponentInstance = instantiateReactComponent(child);
+                    childrenInstances.push(childComponentInstance);
+                    childComponentInstance._mountIndex = key;
+                    curRootId = `${this._rootNodeID}.${key}`;
+                    childrenMarkups.push(childComponentInstance.mountComponent(curRootId));
+                }
             });
         }
 
@@ -221,6 +256,12 @@ export class ReactDOMComponent {
 
                 //  之前的事件代理需要解除
                 if (EVENT_REG.test(propKey)) {
+                    eventType = propKey.replace("on", "");
+                    Event.undelegate({
+                        element: doc,
+                        type: eventType,
+                        selector: `[data-reactid="${_rootNodeID}"]`
+                    });
 
                     //  TODO: 解除事件代理
                     continue;
@@ -246,7 +287,7 @@ export class ReactDOMComponent {
                     continue;
                 } else if (propKey === "className") {
                     element.setAttribute("class", propValue);
-                } else if(propKey === "style") {
+                } else if (propKey === "style") {
                     if (lodash.isObject(propValue)) {
                         propValue = toStyle.string(propValue);
                     }
@@ -263,11 +304,11 @@ export class ReactDOMComponent {
      *  @param    {Array}  nextChildrenElements  [被更新的组件队列]
      */
     _updateDOMChildren(nextChildrenElements) {
-        update.updateDepth ++;
+        update.updateDepth++;
 
         //  递归找出差别, 组装差异对象
         update.diff(update.diffQueue, nextChildrenElements, this);
-        update.updateDepth --;
+        update.updateDepth--;
         //  应用更新
         if (update.updateDepth === 0) {
             update.patch(update.diffQueue);
@@ -324,7 +365,8 @@ export class ReactCompositeComponent {
     }
 
 
-    receiveComponent(nextElement, newState) {
+    receiveComponent(nextElement, newState = {}) {
+
         //  如果接受了新的, 就使用最新的element
         this._currentElement = nextElement || this._currentElement;
 
@@ -333,12 +375,13 @@ export class ReactCompositeComponent {
         let inst = this._instance,
 
             //  nextState和nextProps的处理
-            nextState = Object.assign(inst.state, newState),
+            nextState = Object.assign(inst.state || {}, newState),
             nextProps = lodash.clone(this._currentElement.props),
             prevComponentInstance,
             prevRenderedElement,
             nextRenderedElement,
-            nextMarkup;
+            nextMarkup,
+            child;
 
         //  修改组件的state
         inst.state = nextState;
@@ -358,15 +401,16 @@ export class ReactCompositeComponent {
         prevRenderedElement = prevComponentInstance._currentElement;
 
         //  即将被渲染的新组件元素
-        nextRenderedElement = this._instance.render();
+        nextRenderedElement = inst.render();
 
         //  判断是需要更新还是直接就重新渲染
-        if ((!lodash.isNull(prevRenderedElement) && !lodash.isNull(nextRenderedElement)) && shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
+        if ((!lodash.isNull(prevRenderedElement) && !lodash.isNull(nextRenderedElement)) &&
+            shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
             prevComponentInstance.receiveComponent(nextRenderedElement);
             inst.componentDidUpdate();
         } else {
             //  重新new一个对应的component
-            this._renderedComponent = this.instantiateReactComponent(nextRenderedElement);
+            this._renderedComponent = instantiateReactComponent(nextRenderedElement);
 
             //  重新生成对应的元素内容
             nextMarkup = this._renderedComponent.mountComponent(_rootNodeID);

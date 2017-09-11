@@ -2,7 +2,7 @@ import * as lodash from "lodash";
 import StackTrace from "stacktrace-js";
 
 import { instantiateReactComponent } from "./react.componet";
-import { hasOwnProperty, noop } from "./helper/util";
+import { hasOwnProperty, uuid, makeArray, noop } from "./helper/util";
 
 //  Element.prototype.matches兼容, 事件代理
 import "./helper/polyfill";
@@ -95,12 +95,9 @@ export class Component {
 /**
  *  解析JSX
  */
-function createElement(type, config, ...children) {
-
-    // console.log([].slice.call(arguments));
-    // console.log(children);
-
-    let props = {},
+function createElement(type, config) {
+    let argus = makeArray(arguments),
+        props = {},
         key = null,
         ref = null;
     if (config !== null) {
@@ -113,8 +110,11 @@ function createElement(type, config, ...children) {
         }
     }
 
-    //  子组件
-    props.children = children;
+    if (argus.length > 2) {
+        //  子组件
+        props.children = [];
+        props.children = makeArray(props.children.concat([].slice.call(argus, 2)), true);
+    }
 
     return new ReactElement(type, key, props, ref);
 }
@@ -137,14 +137,5 @@ const React = {
 };
 
 window["React"] = React;
-
-window.logLine = function() {
-    console.log(`------------------------------------`);
-};
-
-window.log = function() {
-    console.log.apply(console, [].slice.call(arguments));
-    console.log("\n");
-};
 
 export default React;
