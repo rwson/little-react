@@ -13,8 +13,13 @@ class TodoInput extends Component {
 
     keyUpHandler(ev) {
         const evt = ev || window.event,
-            { keyCode } = evt;
+            { keyCode, target } = evt;
+        let { value } = target;
+        value = value.trim();
         if (keyCode === 13) {
+            if (!value.length) {
+                return;
+            }
             this.props.addTodo($(".new-todo").value.trim());
             $(".new-todo").value = "";
         }
@@ -23,11 +28,12 @@ class TodoInput extends Component {
     render() {
         const { placeholder } = this.props;
         return (
-            <header className="header">
+            <header className="header" ref="todoHeader">
                 <h1>todos</h1>
                 <input className="new-todo"
                        placeholder={placeholder}
                        autofocus="true"
+                       ref="todoTitle"
                        onKeyUp={this.keyUpHandler.bind(this, event)} />
             </header>
         );
@@ -71,7 +77,7 @@ class TodoList extends Component {
                                             <input
                                                 className="toggle"
                                                 type="checkbox"
-                                                checked="checked" />
+                                                checked={todo.completed} />
                                         )
                                          : 
                                         (
@@ -141,7 +147,8 @@ class TodoApp extends Component {
             todos: [],
             left: 0,
             total: 0,
-            completed: 0
+            completed: 0,
+            fillter: "all"
         };
     }
 
@@ -220,6 +227,12 @@ class TodoApp extends Component {
         });
     }
 
+    setFilter(filter) {
+        this.setState({
+            filter
+        });
+    }
+
     render() {
         return (
             <section className="todoapp">
@@ -229,11 +242,13 @@ class TodoApp extends Component {
                 <TodoList
                     checkTodo={this.checkTodo.bind(this)}
                     removeTodo={this.removeTodo.bind(this)}
+                    filter={this.state.filter}
                     todos={this.state.todos} />
                 <TodoFooter
                     left={this.state.left}
                     total={this.state.total}
                     completed={this.state.completed}
+                    setFilter={this.setFilter.bind(this)}
                 />
             </section>
         );

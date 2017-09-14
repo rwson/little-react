@@ -2,7 +2,7 @@ import * as lodash from "lodash";
 import * as toStyle from "to-style";
 import mixin from "mixin-decorator";
 import StackTrace from "stacktrace-js";
-import { hasOwnProperty, noop } from "./helper/util";
+import { hasOwnProperty, defineProperty, noop } from "./helper/util";
 import { $, $$ } from "./helper/dom";
 import { shouldUpdateReactComponent, update } from "./update";
 import Event from "./helper/event";
@@ -129,7 +129,7 @@ export class ReactDOMComponent {
      */
     mountComponent(rootID) {
         this._rootNodeID = rootID;
-        const { props, type } = this._currentElement, { children } = props,
+        const { props, type, refs } = this._currentElement, { children } = props,
             isSingleTag = SINGLE_TAG_REG.test(type);
         let tagOpen, tagClose, propKey, propValue, eventType, childrenInstances, childComponentInstance, childrenMarkups, curRootId;
         tagOpen = [];
@@ -226,16 +226,17 @@ export class ReactDOMComponent {
     }
 
     receiveComponent(nextElement) {
-        const lastProps = this._currentElement.props,
+        const lastProps = lodash.clone(this._currentElement.props),
             nextProps = nextElement.props;
-
-        this._currentElement = nextElement;
 
         //  需要单独的更新属性
         this._updateDOMProperties(lastProps, nextProps);
 
         //  再更新子节点
         this._updateDOMChildren(nextElement.props.children);
+
+        //  修改currentElement变成本次渲染的
+        this._currentElement = nextElement;
     }
 
     /**
@@ -282,6 +283,19 @@ export class ReactDOMComponent {
                 propValue = lastProps[propKey];
 
                 if (EVENT_REG.test(propKey)) {
+                    eventType = propKey.replace("on", "");
+                    Event.undelegate({
+                        element: doc,
+                        type: eventType,
+                        selector: `[data-reactid="${_rootNodeID}"]`
+                    });
+                    Event.delegate({
+                        element: doc,
+                        type: eventType,
+                        selector: `[data-reactid="${_rootNodeID}"]`,
+                        handler: propValue,
+                        context: null
+                    });
 
                     //  TODO: 重新事件代理
                     continue;
@@ -304,14 +318,17 @@ export class ReactDOMComponent {
      *  @param    {Array}  nextChildrenElements  [被更新的组件队列]
      */
     _updateDOMChildren(nextChildrenElements) {
-        update.updateDepth++;
+        if (nextChildrenElements && nextChildrenElements.length) {
 
-        //  递归找出差别, 组装差异对象
-        update.diff(update.diffQueue, nextChildrenElements, this);
-        update.updateDepth--;
-        //  应用更新
-        if (update.updateDepth === 0) {
-            update.patch(update.diffQueue);
+            update.updateDepth++;
+            //  递归找出差别, 组装差异对象
+            update.diff(update.diffQueue, nextChildrenElements, this);
+            update.updateDepth--;
+
+            //  应用更新
+            if (update.updateDepth === 0) {
+                update.patch(update.diffQueue);
+            }
         }
     }
 }
@@ -335,6 +352,7 @@ export class ReactCompositeComponent {
         const { props, type } = this._currentElement,
             ReactClass = type,
             inst = new ReactClass(props);
+
         let props2 = lodash.clone(props),
             element2 = lodash.clone(this._currentElement),
             renderedElement, renderedComponentInstance, renderedMarkup;
@@ -365,8 +383,7 @@ export class ReactCompositeComponent {
     }
 
 
-    receiveComponent(nextElement, newState = {}) {
-
+    receiveComponent(nextElement, newState) {
         //  如果接受了新的, 就使用最新的element
         this._currentElement = nextElement || this._currentElement;
 
@@ -377,14 +394,18 @@ export class ReactCompositeComponent {
             //  nextState和nextProps的处理
             nextState = Object.assign(inst.state || {}, newState),
             nextProps = lodash.clone(this._currentElement.props),
+            finalProps,
             prevComponentInstance,
             prevRenderedElement,
             nextRenderedElement,
             nextMarkup,
             child;
 
-        //  修改组件的state
+        //  修改组件的state和props
+        this._instance.state = nextState;
+        this._instance.props = nextProps;
         inst.state = nextState;
+        inst.props = nextProps;
 
         //  声明周期shouldComponentUpdate
         if (!inst.shouldComponentUpdate(nextProps, nextState)) {
@@ -404,10 +425,8 @@ export class ReactCompositeComponent {
         nextRenderedElement = inst.render();
 
         //  判断是需要更新还是直接就重新渲染
-        if ((!lodash.isNull(prevRenderedElement) && !lodash.isNull(nextRenderedElement)) &&
-            shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
+        if (shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
             prevComponentInstance.receiveComponent(nextRenderedElement);
-            inst.componentDidUpdate();
         } else {
             //  重新new一个对应的component
             this._renderedComponent = instantiateReactComponent(nextRenderedElement);
@@ -418,5 +437,6 @@ export class ReactCompositeComponent {
             //  替换整个节点
             $(`[data-reactid="${_rootNodeID}"]`).innerHTML = nextMarkup;
         }
+        inst.componentDidUpdate();
     }
 }

@@ -14,6 +14,10 @@ function hasOwnProperty(obj, key) {
     return obj.hasOwnProperty(key);
 }
 
+function defineProperty(obj, key, descriptor) {
+    return Object.defineProperty(obj, key, descriptor)
+}
+
 function uuid() {
     return `${Math.random().toString(36)}-${new Date().getTime().toString(36)}`;
 }
@@ -41,6 +45,7 @@ function noop() {}
 export {
     makeArray,
     hasOwnProperty,
+    defineProperty,
     uuid,
     noop
 }

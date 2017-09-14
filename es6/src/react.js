@@ -4,7 +4,7 @@ import StackTrace from "stacktrace-js";
 import { instantiateReactComponent } from "./react.componet";
 import { hasOwnProperty, uuid, makeArray, noop } from "./helper/util";
 
-//  Element.prototype.matches兼容, 事件代理
+//  Element.prototype.matches兼容, 事件代理中使用css选择器
 import "./helper/polyfill";
 
     //  无用的一些属性
