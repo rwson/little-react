@@ -63,21 +63,22 @@ class TodoList extends Component {
         return (<ul className="todo-list">
                 {
                     todos.map((todo) => {
+                        const isCompleted = (todo.completed === true);
                         return (
                             <li
                                 className= {classname({
-                                    completed: todo.completed
+                                    completed: isCompleted
                                 })}
                                 data-id={todo.id}>
                                 <div className="view">
                                     {
-                                        todo.completed
+                                        isCompleted
                                          ? 
                                         (
                                             <input
                                                 className="toggle"
                                                 type="checkbox"
-                                                checked={todo.completed} />
+                                                checked="checked" />
                                         )
                                          : 
                                         (
@@ -100,8 +101,27 @@ class TodoList extends Component {
     }
 
     render() {
-        const { todos } = this.props,
-            todoItems = (todos && todos.length) ? this.renderTodoItem(todos) : null;
+        const { todos, filter } = this.props;
+        let todoItems = null, renderTodos;
+        if (todos.length) {
+            renderTodos = todos.filter(({ completed }) => {
+                switch (filter) {
+                    case "all":
+                        return true;
+                    break;
+
+                    case "completed":
+                        return completed;
+                    break;
+
+                    case "last":
+                        return !completed;
+                    break;
+                }
+            });
+            todoItems = this.renderTodoItem(renderTodos);
+        }
+
         return (
             <section>
                 <label for="toggle-all">Mark all as complete</label>
@@ -116,25 +136,23 @@ class TodoFooter extends Component {
         super();
     }
 
+    setFilter(newFilter) {
+        const { setFilter, filter } = this.props;
+        if (typeof setFilter === "function" && newFilter !== filter) {
+            setFilter(newFilter);
+        }
+    }
+
     render() {
-        const { left, total, completed } = this.props;
+        const { left, total, completed, filter } = this.props;
         return (
             <footer className="footer">
                 <span className="todo-count"><strong>{
                     left || "0"
                 }</strong>剩余</span>
-                <ul className="filters">
-                    <li>
-                        <a className="selected" href="javascript:;">所有</a>
-                    </li>
-                    <li>
-                        <a href="javascript:;">未完成</a>
-                    </li>
-                    <li>
-                        <a href="javascript:;">已完成</a>
-                    </li>
-                </ul>
-                <button className="javascript:;">清除已完成</button>
+                <span className="todo-count">&nbsp;&nbsp;&nbsp;共<strong>{
+                    total
+                }</strong>项</span>
             </footer>
         );
     }
@@ -148,7 +166,7 @@ class TodoApp extends Component {
             left: 0,
             total: 0,
             completed: 0,
-            fillter: "all"
+            filter: "all"
         };
     }
 
@@ -244,12 +262,6 @@ class TodoApp extends Component {
                     removeTodo={this.removeTodo.bind(this)}
                     filter={this.state.filter}
                     todos={this.state.todos} />
-                <TodoFooter
-                    left={this.state.left}
-                    total={this.state.total}
-                    completed={this.state.completed}
-                    setFilter={this.setFilter.bind(this)}
-                />
             </section>
         );
     }

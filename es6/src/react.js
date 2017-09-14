@@ -33,7 +33,7 @@ export class Component {
 
     constructor() {}
 
-    setState(newState) {
+    setState(newState, callback) {
         const stacks = StackTrace.getSync();
         for(let {functionName, source} of stacks) {
             if(RENDER_REG.test(functionName) && RENDER_REG.test(source)) {
@@ -41,6 +41,10 @@ export class Component {
             }
         }
         this._reactInternalInstance.receiveComponent(null, newState);
+
+        if (lodash.isFunction(callback)) {
+            callback();
+        }
     }
 
     /**

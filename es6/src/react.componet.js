@@ -225,6 +225,10 @@ export class ReactDOMComponent {
         return `${tagOpen.join(" ")} ${childrenMarkups.join("")} ${tagClose}`;
     }
 
+    /**
+     *  接收到新组件
+     *  @param   {Object}  nextElement  [新组件]
+     */
     receiveComponent(nextElement) {
         const lastProps = lodash.clone(this._currentElement.props),
             nextProps = nextElement.props;
@@ -382,7 +386,11 @@ export class ReactCompositeComponent {
         return renderedMarkup;
     }
 
-
+    /**
+     *  接收到新组件, 更新实例下的state, 组件生命周期方法调用
+     *  @param   {ReactElement}  nextElement  [新的Vnode]
+     *  @param   {Object}        newState     [this.setState(state)中的state]
+     */
     receiveComponent(nextElement, newState) {
         //  如果接受了新的, 就使用最新的element
         this._currentElement = nextElement || this._currentElement;

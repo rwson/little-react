@@ -40,13 +40,7 @@ function flattenChildren(componentChildren) {
  *  @param   {Array}   nextChildrenElements  [即将要渲染的节点]
  *  @return  {Object}                        [子节点elements的component集合]
  */
-function generateComponentChildren(prevChildren, nextChildrenElements, log) {
-
-    if (log) {
-        console.log(prevChildren);
-        console.log(nextChildrenElements);
-    }
-
+function generateComponentChildren(prevChildren, nextChildrenElements) {
     let nextChildren = {},
         index, len, name, prevChild, prevElement, nextElement, nextChildInstance, element;
     nextChildrenElements = nextChildrenElements || [];
@@ -132,11 +126,6 @@ export const update = {
 
             //  生成新的子节点的component对象集合(如果是组件有更新, 就复用原来的, 如果是新增就是新的组件实例)
             nextChildren = generateComponentChildren(prevChildren, nextChildrenElements);
-
-        // if(component._rootNodeID === "0.1") {
-        //     console.log(makeArray(component._renderedChildren));
-        //     console.log(nextChildrenElements);
-        // }
 
         let lastIndex = 0,
             nextIndex = 0,
